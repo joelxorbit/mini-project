@@ -1,20 +1,23 @@
-const { auth } = require('../config/firebase');
+const jwt = require('jsonwebtoken');
 
-const verifyToken = async (req, res, next) => {
-  const token = req.headers.authorization?.split('Bearer ')[1];
+const JWT_SECRET = process.env.JWT_SECRET || 'antigravity_super_secret_jwt_key_2026';
+
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split('Bearer ')[1];
 
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized: No token provided' });
   }
 
   try {
-    const decodedToken = await auth.verifyIdToken(token);
-    req.user = decodedToken;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
     next();
   } catch (error) {
-    console.error('Error verifying auth token', error);
+    console.error('Error verifying JWT token:', error.message);
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 };
 
-module.exports = { verifyToken };
+module.exports = { verifyToken, JWT_SECRET };

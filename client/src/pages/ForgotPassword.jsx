@@ -17,7 +17,7 @@ export default function ForgotPassword() {
       await resetPassword(email);
       toast.success('Check your inbox for further instructions');
     } catch (error) {
-      toast.error('Failed to reset password. ' + error.message);
+      toast.error('Failed to reset password. Please contact support.');
     } finally {
       setLoading(false);
     }

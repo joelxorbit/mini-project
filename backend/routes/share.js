@@ -1,29 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const { rtdb, db } = require('../config/firebase');
+const { getQuery } = require('../config/db');
 
 // Route to access publicly shared files
 router.get('/:fileId', async (req, res) => {
   try {
     const { fileId } = req.params;
 
-    // 1. Fetch metadata
-    const fileDoc = await db.collection('Files').doc(fileId).get();
+    // 1. Fetch file from SQLite database
+    const fileData = await getQuery('SELECT * FROM files WHERE id = ?', [fileId]);
     
-    if (!fileDoc.exists) {
+    if (!fileData) {
       return res.status(404).send('<h1>404 Not Found</h1><p>The requested file does not exist.</p>');
     }
 
-    const fileData = fileDoc.data();
-
     // 2. Security Check: Ensure file is public
-    if (fileData.isPublic !== true) {
+    if (Boolean(fileData.isPublic) !== true) {
       return res.status(403).send('<h1>403 Forbidden</h1><p>This file is private and has not been shared.</p>');
     }
 
-    // 3. Fetch Base64 data from Realtime Database
-    const snapshot = await rtdb.ref(`fileBlobs/${fileId}/data`).once('value');
-    const base64Data = snapshot.val();
+    const base64Data = fileData.data;
 
     if (!base64Data) {
       return res.status(404).send('<h1>404 Not Found</h1><p>File content is missing or corrupted.</p>');

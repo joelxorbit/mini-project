@@ -1,8 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db, rtdb } from '../firebase/firebase';
-import { ref as rtdbRef, set } from 'firebase/database';
-import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
+import api from '../services/api';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, X, File, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -70,29 +68,12 @@ export default function Upload() {
         const base64Data = await fileToBase64(fileObj.file);
         setFiles(prev => prev.map(f => f.id === fileObj.id ? { ...f, progress: 60 } : f));
 
-        // 2. Save Metadata to Firestore
-        const docRef = await addDoc(collection(db, 'Files'), {
+        // 2. Upload file to SQLite backend
+        await api.post('/files', {
           fileName: fileObj.file.name,
           fileType: fileObj.file.type,
           fileSize: fileObj.file.size,
-          uploadDate: new Date().toISOString(),
-          downloadCount: 0,
-          owner: currentUser.uid,
-          isPublic: false
-        });
-
-        // 3. Save Base64 to Realtime Database
-        await set(rtdbRef(rtdb, `fileBlobs/${docRef.id}`), {
-          data: base64Data,
-          owner: currentUser.uid
-        });
-
-        setFiles(prev => prev.map(f => f.id === fileObj.id ? { ...f, progress: 90 } : f));
-
-        // 4. Update User Storage
-        const userRef = doc(db, 'Users', currentUser.uid);
-        await updateDoc(userRef, {
-          storageUsed: increment(fileObj.file.size)
+          data: base64Data
         });
 
         setFiles(prev => prev.map(f => f.id === fileObj.id ? { ...f, status: 'success', progress: 100 } : f));

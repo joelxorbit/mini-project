@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const { db } = require('../config/firebase');
+const { runQuery } = require('../config/db');
 const { verifyToken } = require('../middleware/authMiddleware');
 
 const razorpay = new Razorpay({
@@ -45,13 +45,11 @@ router.post('/verify', verifyToken, async (req, res) => {
 
     if (razorpay_signature === expectedSignature) {
       // Payment is verified
-      // Upgrade the user in Firestore
-      const userRef = db.collection('Users').doc(req.user.uid);
-      
-      await userRef.update({
-        isPremium: true,
-        storageLimit: 100 * 1024 * 1024, // 100 MB
-      });
+      // Upgrade the user in SQLite database
+      await runQuery(
+        `UPDATE users SET isPremium = 1, plan = 'Premium', storageLimit = ? WHERE uid = ?`,
+        [100 * 1024 * 1024, req.user.uid]
+      );
 
       return res.json({ success: true, message: 'Payment verified and account upgraded successfully' });
     } else {

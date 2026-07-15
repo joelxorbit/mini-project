@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../firebase/firebase';
-import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import api from '../services/api';
 import { FileText, Image as ImageIcon, Video, Music, HardDrive, Share2, UploadCloud, ArrowRight, File } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -25,25 +24,23 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
+    if (currentUser) {
+      fetchDashboardData();
+    }
   }, [currentUser]);
 
   const fetchDashboardData = async () => {
     try {
-      const q = query(collection(db, 'Files'), where('owner', '==', currentUser.uid));
-      const querySnapshot = await getDocs(q);
+      const res = await api.get('/files');
+      const allFiles = res.data || [];
       
       let totalFiles = 0;
       let totalStorage = 0;
       let sharedLinks = 0;
       
       const storageOverview = { images: 0, videos: 0, audio: 0, documents: 0 };
-      const allFiles = [];
 
-      querySnapshot.forEach((doc) => {
-        const file = doc.data();
-        allFiles.push({ id: doc.id, ...file });
-        
+      allFiles.forEach((file) => {
         totalFiles += 1;
         totalStorage += file.fileSize || 0;
         

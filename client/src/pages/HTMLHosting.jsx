@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../firebase/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import api from '../services/api';
 import { Globe, ExternalLink, Copy, CheckCircle, Code } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -14,26 +13,25 @@ export default function HTMLHosting() {
 
   const HOSTING_BASE_URL = import.meta.env.VITE_API_URL 
     ? import.meta.env.VITE_API_URL.replace('/api', '') 
-    : (window.location.hostname === 'localhost' ? 'http://localhost:5000' : window.location.origin);
+    : 'http://localhost:5000';
 
   useEffect(() => {
-    fetchHtmlFiles();
+    if (currentUser) {
+      fetchHtmlFiles();
+    }
   }, [currentUser]);
 
   const fetchHtmlFiles = async () => {
     try {
-      const q = query(collection(db, 'Files'), where('owner', '==', currentUser.uid));
-      const querySnapshot = await getDocs(q);
+      const res = await api.get('/files');
       
-      const filesList = querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
+      const filesList = (res.data || [])
         .filter(file => {
           const type = file.fileType;
           const name = file.fileName;
           return type === 'text/html' || type === 'text/css' || type?.includes('javascript') ||
                  name.endsWith('.html') || name.endsWith('.css') || name.endsWith('.js');
-        })
-        .sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate));
+        });
         
       setHtmlFiles(filesList);
     } catch (error) {

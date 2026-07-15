@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db, rtdb } from '../firebase/firebase';
-import { collection, query, where, getDocs, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
-import { ref as rtdbRef, remove, get } from 'firebase/database';
+import api from '../services/api';
 import { File, Image as ImageIcon, Video, Music, MoreVertical, Download, Trash2, Edit2, Share2, Search, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -14,20 +12,15 @@ export default function MyFiles() {
   const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
-    fetchFiles();
+    if (currentUser) {
+      fetchFiles();
+    }
   }, [currentUser]);
 
   const fetchFiles = async () => {
     try {
-      const q = query(collection(db, 'Files'), where('owner', '==', currentUser.uid));
-      const querySnapshot = await getDocs(q);
-      const filesList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Sort by uploadDate descending
-      filesList.sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate));
-      setFiles(filesList);
+      const res = await api.get('/files');
+      setFiles(res.data || []);
     } catch (error) {
       console.error("Error fetching files: ", error);
       toast.error('Failed to load files');
@@ -40,18 +33,7 @@ export default function MyFiles() {
     if (!window.confirm('Are you sure you want to delete this file?')) return;
 
     try {
-      // Delete from Realtime Database
-      await remove(rtdbRef(rtdb, `fileBlobs/${fileId}`));
-
-      // Delete from Firestore
-      await deleteDoc(doc(db, 'Files', fileId));
-
-      // Update user storage
-      const userRef = doc(db, 'Users', currentUser.uid);
-      await updateDoc(userRef, {
-        storageUsed: increment(-fileSize)
-      });
-
+      await api.delete(`/files/${fileId}`);
       setFiles(prev => prev.filter(f => f.id !== fileId));
       toast.success('File deleted successfully');
     } catch (error) {
@@ -64,30 +46,21 @@ export default function MyFiles() {
     try {
       setDownloadingId(file.id);
       
-      // Fetch base64 string from RTDB
-      const snapshot = await get(rtdbRef(rtdb, `fileBlobs/${file.id}/data`));
+      const res = await api.get(`/files/${file.id}/download`);
+      const base64Data = res.data.data;
       
-      if (!snapshot.exists()) {
+      if (!base64Data) {
         toast.error('File data not found in database.');
         setDownloadingId(null);
         return;
       }
       
-      const base64Data = snapshot.val();
-      
-      // Create a temporary anchor element to trigger download
       const link = document.createElement('a');
       link.href = base64Data;
       link.download = file.fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Increment download count in Firestore
-      await updateDoc(doc(db, 'Files', file.id), {
-        downloadCount: increment(1)
-      });
-      
     } catch (error) {
       console.error("Error downloading file:", error);
       toast.error('Failed to download file');
@@ -99,9 +72,7 @@ export default function MyFiles() {
   const handleShare = async (file) => {
     try {
       const newIsPublic = !file.isPublic;
-      await updateDoc(doc(db, 'Files', file.id), {
-        isPublic: newIsPublic
-      });
+      await api.patch(`/files/${file.id}/share`, { isPublic: newIsPublic });
       
       setFiles(prev => prev.map(f => f.id === file.id ? { ...f, isPublic: newIsPublic } : f));
       

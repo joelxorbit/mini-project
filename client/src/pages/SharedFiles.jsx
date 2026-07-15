@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../firebase/firebase';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import api from '../services/api';
 import { Share2, Copy, CheckCircle, ExternalLink, Globe, File, Image as ImageIcon, Video, Music } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -14,25 +13,18 @@ export default function SharedFiles() {
 
   const HOSTING_BASE_URL = import.meta.env.VITE_API_URL 
     ? import.meta.env.VITE_API_URL.replace('/api', '') 
-    : (window.location.hostname === 'localhost' ? 'http://localhost:5000' : window.location.origin);
+    : 'http://localhost:5000';
 
   useEffect(() => {
-    fetchSharedFiles();
+    if (currentUser) {
+      fetchSharedFiles();
+    }
   }, [currentUser]);
 
   const fetchSharedFiles = async () => {
     try {
-      const q = query(
-        collection(db, 'Files'), 
-        where('owner', '==', currentUser.uid),
-        where('isPublic', '==', true)
-      );
-      const querySnapshot = await getDocs(q);
-      
-      const filesList = querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate));
-        
+      const res = await api.get('/files');
+      const filesList = (res.data || []).filter(file => file.isPublic === true);
       setSharedFiles(filesList);
     } catch (error) {
       console.error("Error fetching shared files: ", error);
@@ -51,9 +43,7 @@ export default function SharedFiles() {
 
   const unshareFile = async (fileId) => {
     try {
-      await updateDoc(doc(db, 'Files', fileId), {
-        isPublic: false
-      });
+      await api.patch(`/files/${fileId}/share`, { isPublic: false });
       setSharedFiles(prev => prev.filter(f => f.id !== fileId));
       toast.success('File is now private');
     } catch (error) {

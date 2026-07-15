@@ -1,20 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const { rtdb, db } = require('../config/firebase');
+const { getQuery } = require('../config/db');
 
 // Route to host HTML files
 router.get('/:fileId', async (req, res) => {
   try {
     const { fileId } = req.params;
 
-    // 1. Fetch metadata to check if it's an HTML file
-    const fileDoc = await db.collection('Files').doc(fileId).get();
+    // 1. Fetch file from SQLite database
+    const fileData = await getQuery('SELECT * FROM files WHERE id = ?', [fileId]);
     
-    if (!fileDoc.exists) {
+    if (!fileData) {
       return res.status(404).send('<h1>404 Not Found</h1><p>The requested file does not exist.</p>');
     }
-
-    const fileData = fileDoc.data();
 
     // Allow HTML, CSS, and JS files
     const allowedTypes = ['text/html', 'text/css', 'text/javascript', 'application/javascript'];
@@ -22,9 +20,7 @@ router.get('/:fileId', async (req, res) => {
       return res.status(400).send('<h1>400 Bad Request</h1><p>This file type cannot be hosted.</p>');
     }
 
-    // 2. Fetch Base64 data from Realtime Database
-    const snapshot = await rtdb.ref(`fileBlobs/${fileId}/data`).once('value');
-    const base64Data = snapshot.val();
+    const base64Data = fileData.data;
 
     if (!base64Data) {
       return res.status(404).send('<h1>404 Not Found</h1><p>File content is missing or corrupted.</p>');
